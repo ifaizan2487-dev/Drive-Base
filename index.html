@@ -112,7 +112,7 @@
         </div>
       </div>
 
-      <!-- Command CLI -->
+      <!-- Command CLI Terminal -->
       <div class="glass-card rounded-xl p-4 flex flex-col">
         <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-800">
           <span class="text-xs font-semibold text-gray-400 flex items-center gap-2">
@@ -120,11 +120,14 @@
           </span>
           <button onclick="clearCLI()" class="text-[10px] text-gray-500 hover:text-gray-300">Clear</button>
         </div>
+        
         <div id="cliOutput" class="code-font text-xs text-gray-300 h-28 overflow-y-auto space-y-1 mb-2 bg-gray-950 p-2 rounded border border-gray-900">
           <div><span class="text-emerald-400">DriveBase CLI [v1.0.0]</span> - Type <span class="text-yellow-400 font-bold">help</span> for commands.</div>
         </div>
+        
+        <!-- Terminal Form with Input and Run Button -->
         <form onsubmit="handleCLISubmit(event)" class="flex gap-2">
-          <input type="text" id="cliInput" placeholder="Enter SQL or CLI command..." class="flex-1 bg-gray-950 border border-gray-800 rounded px-3 py-1.5 text-xs text-white code-font focus:outline-none focus:border-emerald-500">
+          <input type="text" id="cliInput" placeholder="Enter command (e.g. create products OR insert users name=Rahul)..." class="flex-1 bg-gray-950 border border-gray-800 rounded px-3 py-1.5 text-xs text-white code-font focus:outline-none focus:border-emerald-500">
           <button type="submit" class="bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs px-4 py-1.5 rounded border border-gray-700 transition">Run</button>
         </form>
       </div>
@@ -162,7 +165,7 @@
           <ol class="list-decimal pl-4 space-y-0.5">
             <li>Go to Google Cloud Console (APIs & Services).</li>
             <li>Create OAuth 2.0 Web Application credentials.</li>
-            <li>Add your domain URL to Authorized JavaScript origins.</li>
+            <li>Add https://ifaizan2487-dev.github.io to Authorized JavaScript origins.</li>
           </ol>
         </div>
       </div>
@@ -181,7 +184,7 @@
     </div>
   </div>
 
-  <!-- Complete Embedded JavaScript -->
+  <!-- JavaScript Engine -->
   <script>
     // Database State Storage & Automatic Sanitizer
     let db = JSON.parse(localStorage.getItem('drivebase_db')) || {
@@ -191,7 +194,7 @@
       ]
     };
 
-    // Auto-clean any corrupt/undefined rows from local storage
+    // Clean up any corrupt/undefined rows from local storage on launch
     Object.keys(db).forEach(tbl => {
       if (Array.isArray(db[tbl])) {
         db[tbl] = db[tbl].filter(row => row && typeof row === 'object' && Object.values(row).some(v => v !== undefined && v !== null && v !== ''));
@@ -342,7 +345,7 @@
       printCLI(`Deleted row at index ${index} from '${activeTable}'.`);
     }
 
-    // CLI Terminal Parser (With CREATE and INSERT command support)
+    // Interactive Terminal Logic (Supports Type & Run Commands)
     function handleCLISubmit(e) {
       e.preventDefault();
       const input = document.getElementById('cliInput');
@@ -509,7 +512,7 @@
       }
     });
 
-    // Boot App
+    // Initialize App
     init();
   </script>
 </body>
