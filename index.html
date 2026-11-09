@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DriveBase Studio — Independent Database Engine</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              accent: '#10b981', // Supabase Emerald
+              gdrive: '#4285F4'  // Google Blue
+            },
+            dark: {
+              bg: '#0b0f19',
+              surface: '#111827',
+              card: '#1f2937',
+              border: '#374151',
+              hover: '#2d3748',
+              input: '#151d2a'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- FontAwesome Icons & Google Fonts -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  
+  <!-- Google Identity Services JS Library -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    * { touch-action: manipulation; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b0f19;
+      color: #f3f4f6;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: #0b0f19; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col bg-dark-bg text-gray-100 select-none">
+
+  <!-- Toast Notification Bar -->
+  <div id="toast-container" class="fixed top-3 right-3 left-3 sm:left-auto sm:w-80 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Header Navigation -->
+  <header class="h-14 bg-dark-surface border-b border-dark-border px-3 sm:px-4 flex items-center justify-between shrink-0 z-20">
+    <div class="flex items-center space-x-2.5">
+      <div class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm shadow-sm">
+        <i class="fa-solid fa-database text-xs"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-white text-xs sm:text-sm leading-tight flex items-center gap-1.5">
+          DriveBase <span class="text-[9px] bg-brand-accent/20 text-brand-accent px-1.5 py-0.5 rounded font-mono uppercase font-semibold">Studio</span>
+        </h1>
+        <p class="text-[10px] text-gray-400 hidden sm:block">100% Client-Side • Local & Google Drive Storage</p>
+      </div>
+    </div>
+
+    <!-- Right Controls Header -->
+    <div class="flex items-center space-x-2">
+      <!-- Account Auth Status Badge -->
+      <div id="auth-status-pill" onclick="openModal('gdrive-config-modal')" class="cursor-pointer flex items-center gap-2 px-2.5 py-1.5 rounded-full text-xs bg-dark-card border border-dark-border hover:bg-dark-hover transition">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="status-indicator"></span>
+        <span class="text-[11px] font-medium text-gray-300 max-w-[100px] sm:max-w-[140px] truncate" id="user-display-name">Local Storage</span>
+      </div>
+      
+      <button onclick="openModal('gdrive-config-modal')" class="px-2.5 py-1.5 rounded-lg bg-brand-gdrive hover:bg-blue-600 text-white font-medium text-xs transition flex items-center gap-1.5 shadow-sm">
+        <i class="fa-brands fa-google text-xs"></i>
+        <span class="hidden sm:inline">Sync Drive</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Google Auth Configuration Modal -->
+  <div id="gdrive-config-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-dark-surface border border-dark-border w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-dark-border pb-3">
+        <h3 class="font-bold text-white text-sm flex items-center gap-2">
+          <i class="fa-brands fa-google text-brand-gdrive text-base"></i> Google Drive Cloud Sync
+        </h3>
+        <button onclick="closeModal('gdrive-config-modal')" class="text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-300 leading-relaxed">
+        DriveBase saves tables directly inside your Google Drive in an isolated folder (<code class="text-brand-accent">appDataFolder</code>).
+      </p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-medium text-gray-300 mb-1">Google OAuth Client ID</label>
+          <input type="text" id="gdrive-client-id-input" placeholder="e.g. 123456789-xyz.apps.googleusercontent.com" class="w-full bg-dark-input border border-dark-border rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-brand-gdrive">
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2 pt-2 border-t border-dark-border">
+        <button onclick="saveGoogleClientIdAndLogin()" class="w-full py-2.5 rounded-lg bg-brand-gdrive text-white text-xs font-semibold hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow">
+          <i class="fa-brands fa-google"></i> Connect Google Drive
+        </button>
+        <button onclick="enableDemoDriveAuth()" class="w-full py-2.5 rounded-lg border border-dark-border bg-dark-card text-gray-300 text-xs font-medium hover:bg-dark-hover transition">
+          Offline Local Storage Mode (Default)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Main Content Area -->
+  <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+    
+    <!-- Sidebar Navigation -->
+    <nav class="order-2 md:order-1 bg-dark-surface border-t md:border-t-0 md:border-r border-dark-border flex md:flex-col justify-around md:justify-start w-full md:w-16 shrink-0 z-10">
+      <button onclick="switchTab('tables')" id="nav-tables" class="tab-btn flex-1 md:flex-none p-3 text-center text-brand-accent bg-brand-accent/10 border-t-2 md:border-t-0 md:border-r-2 border-brand-accent transition flex flex-col items-center gap-1">
+        <i class="fa-solid fa-table text-base"></i>
+        <span class="text-[9px] font-bold uppercase tracking-wider">Tables</span>
+      </button>
+
+      <button onclick="switchTab('terminal')" id="nav-terminal" class="tab-btn flex-1 md:flex-none p-3 text-center text-gray-400 hover:text-white transition flex flex-col items-center gap-1">
+        <i class="fa-solid fa-terminal text-base"></i>
+        <span class="text-[9px] font-bold uppercase tracking-wider">Terminal</span>
+      </button>
+
+      <button onclick="switchTab('settings')" id="nav-settings" class="tab-btn flex-1 md:flex-none p-3 text-center text-gray-400 hover:text-white transition flex flex-col items-center gap-1">
+        <i class="fa-solid fa-sliders text-base"></i>
+        <span class="text-[9px] font-bold uppercase tracking-wider">Backup</span>
+      </button>
+    </nav>
+
+    <!-- Content Viewports -->
+    <main class="order-1 md:order-2 flex-1 flex flex-col min-w-0 h-full overflow-hidden relative bg-dark-bg">
+
+      <!-- TAB 1: TABLES VISUAL EDITOR -->
+      <section id="tab-tables" class="tab-panel flex-1 flex flex-col h-full overflow-hidden">
+        <div class="p-3 bg-dark-surface border-b border-dark-border flex items-center justify-between gap-2 overflow-x-auto shrink-0">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-gray-400 font-medium">Table:</span>
+            <select id="table-select-dropdown" onchange="renderActiveTable()" class="bg-dark-input border border-dark-border text-white text-xs rounded-lg px-3 py-1.5 font-mono focus:outline-none focus:border-brand-accent">
+            </select>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button onclick="openModal('create-table-modal')" class="px-2.5 py-1.5 rounded-lg bg-dark-card border border-dark-border text-xs text-gray-200 hover:bg-dark-hover transition flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[10px]"></i>
+              <span class="hidden sm:inline">New Table</span>
+            </button>
+            <button onclick="openModal('insert-row-modal')" class="px-3 py-1.5 rounded-lg bg-brand-accent/20 border border-brand-accent/40 text-brand-accent font-semibold text-xs hover:bg-brand-accent/30 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-plus-square text-[11px]"></i>
+              <span>Add Row</span>
+            </button>
+            <button onclick="handleDropTable()" class="px-2.5 py-1.5 rounded-lg bg-red-950/40 border border-red-800/50 text-red-300 text-xs hover:bg-red-900/50 transition">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-auto p-3 sm:p-4">
+          <div id="table-grid-container" class="border border-dark-border rounded-xl bg-dark-surface overflow-hidden shadow-lg">
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: CLI CONSOLE -->
+      <section id="tab-terminal" class="tab-panel hidden flex-1 flex flex-col h-full bg-black font-mono overflow-hidden">
+        <div class="px-4 py-2 bg-dark-surface border-b border-dark-border flex items-center justify-between text-xs text-gray-400 shrink-0">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>
+            <span class="ml-2 text-gray-300 font-semibold">drivebase-cli v1.0.0</span>
+          </div>
+          <button onclick="clearTerminal()" class="hover:text-white text-[11px]"><i class="fa-solid fa-eraser"></i> Clear</button>
+        </div>
+
+        <div id="terminal-output" class="flex-1 p-4 overflow-y-auto space-y-2 text-xs leading-relaxed text-emerald-400">
+          <div class="text-gray-500">
+            DriveBase Interactive Command Line Console.<br>
+            Type <span class="text-white font-bold">help</span> for commands.<br>
+            Execute SQL: <span class="text-brand-accent font-bold">SELECT * FROM users</span>
+          </div>
+        </div>
+
+        <form onsubmit="handleTerminalSubmit(event)" class="p-3 bg-dark-surface border-t border-dark-border flex items-center space-x-2 shrink-0">
+          <span class="text-brand-accent font-bold text-xs">$</span>
+          <input type="text" id="cli-input" class="flex-1 bg-transparent text-xs font-mono text-white focus:outline-none" placeholder="Enter CLI command..." autocomplete="off">
+          <button type="submit" class="px-3 py-1.5 rounded-lg bg-brand-accent text-dark-bg font-bold text-xs hover:opacity-90">Run</button>
+        </form>
+      </section>
+
+      <!-- TAB 3: BACKUP & SETTINGS -->
+      <section id="tab-settings" class="tab-panel hidden flex-1 p-4 sm:p-6 overflow-y-auto">
+        <div class="max-w-xl mx-auto space-y-5">
+          <div class="bg-dark-surface p-5 rounded-2xl border border-dark-border space-y-4">
+            <h2 class="font-bold text-white text-sm sm:text-base">Database Backup & Dump</h2>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button onclick="exportLocalJSON()" class="p-4 rounded-xl bg-dark-input border border-dark-border text-left hover:border-brand-accent transition space-y-1">
+                <i class="fa-solid fa-file-export text-brand-accent text-lg mb-1"></i>
+                <h4 class="font-semibold text-white text-xs">Export Backup (.JSON)</h4>
+                <p class="text-[10px] text-gray-400">Save complete database snapshot locally.</p>
+              </button>
+
+              <label class="p-4 rounded-xl bg-dark-input border border-dark-border text-left hover:border-brand-gdrive transition space-y-1 cursor-pointer">
+                <i class="fa-solid fa-file-import text-brand-gdrive text-lg mb-1"></i>
+                <h4 class="font-semibold text-white text-xs">Import Backup</h4>
+                <p class="text-[10px] text-gray-400">Restore database from JSON dump.</p>
+                <input type="file" accept=".json" class="hidden" onchange="importLocalJSON(event)">
+              </label>
+            </div>
+          </div>
+
+          <div class="bg-red-950/20 border border-red-900/40 p-5 rounded-2xl space-y-3">
+            <h3 class="font-bold text-red-400 text-xs uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-triangle-exclamation"></i> Reset Local Storage
+            </h3>
+            <p class="text-xs text-gray-400">Purge local database records stored in your browser.</p>
+            <button onclick="resetLocalDB()" class="py-2 px-4 rounded-lg bg-red-600/20 border border-red-600/50 text-red-300 hover:bg-red-600/40 text-xs font-semibold transition">
+              Purge Local Storage
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: CREATE TABLE -->
+  <div id="create-table-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-dark-surface border border-dark-border w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-dark-border pb-3">
+        <h3 class="font-bold text-white text-sm">Create New Table</h3>
+        <button onclick="closeModal('create-table-modal')" class="text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-400 mb-1">Table Name</label>
+          <input type="text" id="new-tbl-name" placeholder="e.g. orders" class="w-full bg-dark-input border border-dark-border rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-accent">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-dark-border">
+        <button onclick="closeModal('create-table-modal')" class="px-3 py-1.5 rounded-lg border border-dark-border text-xs text-gray-300">Cancel</button>
+        <button onclick="handleCreateTable()" class="px-4 py-1.5 rounded-lg bg-brand-accent text-dark-bg text-xs font-semibold">Create Table</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: INSERT ROW -->
+  <div id="insert-row-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-dark-surface border border-dark-border w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-dark-border pb-3">
+        <h3 class="font-bold text-white text-sm">Add New Record</h3>
+        <button onclick="closeModal('insert-row-modal')" class="text-gray-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="insert-row-fields" class="space-y-3 max-h-60 overflow-y-auto text-xs">
+      </form>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-dark-border">
+        <button onclick="closeModal('insert-row-modal')" class="px-3 py-1.5 rounded-lg border border-dark-border text-xs text-gray-300">Cancel</button>
+        <button onclick="handleInsertRow()" class="px-4 py-1.5 rounded-lg bg-brand-accent text-dark-bg text-xs font-semibold">Insert Record</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATABASE ENGINE JS -->
+  <script>
+    class DriveBaseEngine {
+      constructor() {
+        this.storageKey = "DRIVEBASE_PRO_STORE";
+        this.data = {
+          users: [
+            { id: "1", name: "Alex Johnson", email: "alex@dev.local", role: "admin" },
+            { id: "2", name: "Sam Taylor", email: "sam@dev.local", role: "developer" }
+          ],
+          products: [
+            { id: "101", title: "Storage Engine", status: "active" }
+          ]
+        };
+        this.loadLocal();
+      }
+
+      loadLocal() {
+        const raw = localStorage.getItem(this.storageKey);
+        if (raw) {
+          try { this.data = JSON.parse(raw); } catch(e) {}
+        }
+      }
+
+      saveLocal() {
+        localStorage.setItem(this.storageKey, JSON.stringify(this.data));
+      }
+
+      getTables() {
+        return Object.keys(this.data);
+      }
+
+      getTableData(tableName) {
+        return this.data[tableName] || [];
+      }
+
+      createTable(tableName) {
+        if (this.data[tableName]) throw new Error(`Table '${tableName}' already exists.`);
+        this.data[tableName] = [];
+        this.saveLocal();
+      }
+
+      dropTable(tableName) {
+        if (Object.keys(this.data).length <= 1) throw new Error("Cannot drop the last table.");
+        delete this.data[tableName];
+        this.saveLocal();
+      }
+
+      insertRow(tableName, record) {
+        if (!this.data[tableName]) throw new Error(`Table '${tableName}' does not exist.`);
+        this.data[tableName].push(record);
+        this.saveLocal();
+        return record;
+      }
+
+      deleteRow(tableName, index) {
+        if (!this.data[tableName]) return;
+        this.data[tableName].splice(index, 1);
+        this.saveLocal();
+      }
+    }
+
+    const db = new DriveBaseEngine();
+    let googleAccessToken = null;
+
+    window.onload = () => {
+      renderTableSelector();
+      renderActiveTable();
+    };
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-panel').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('text-brand-accent', 'bg-brand-accent/10', 'border-brand-accent');
+        btn.classList.add('text-gray-400');
+      });
+
+      const activeBtn = document.getElementById(`nav-${tabId}`);
+      if (activeBtn) {
+        activeBtn.classList.add('text-brand-accent', 'bg-brand-accent/10');
+        activeBtn.classList.remove('text-gray-400');
+      }
+
+      if (tabId === 'tables') renderActiveTable();
+    }
+
+    function renderTableSelector() {
+      const dropdown = document.getElementById('table-select-dropdown');
+      const tables = db.getTables();
+      dropdown.innerHTML = tables.map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+
+    function renderActiveTable() {
+      const dropdown = document.getElementById('table-select-dropdown');
+      const tblName = dropdown.value;
+      const container = document.getElementById('table-grid-container');
+
+      if (!tblName) {
+        container.innerHTML = `<div class="p-8 text-center text-gray-500 text-xs">No tables available.</div>`;
+        return;
+      }
+
+      const rows = db.getTableData(tblName);
+
+      if (rows.length === 0) {
+        container.innerHTML = `<div class="p-8 text-center text-gray-500 text-xs">Table '${tblName}' is empty.</div>`;
+        return;
+      }
+
+      const cols = Object.keys(rows[0]);
+      let html = `<div class="overflow-x-auto"><table class="w-full text-left text-xs border-collapse"><thead><tr class="bg-dark-input text-gray-400 font-mono border-b border-dark-border">`;
+      cols.forEach(c => html += `<th class="p-2.5 border-r border-dark-border uppercase tracking-wider">${c}</th>`);
+      html += `<th class="p-2.5 text-right">Actions</th></tr></thead><tbody class="divide-y divide-dark-border">`;
+
+      rows.forEach((r, idx) => {
+        html += `<tr class="hover:bg-dark-hover font-mono text-gray-300">`;
+        cols.forEach(c => html += `<td class="p-2.5 border-r border-dark-border whitespace-nowrap">${r[c] !== undefined ? r[c] : ''}</td>`);
+        html += `<td class="p-2.5 text-right">
+          <button onclick="handleDeleteRow('${tblName}', ${idx})" class="text-red-400 hover:text-red-300 px-2">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </td></tr>`;
+      });
+
+      html += `</tbody></table></div>`;
+      container.innerHTML = html;
+    }
+
+    function handleDeleteRow(tbl, idx) {
+      db.deleteRow(tbl, idx);
+      showToast(`Record deleted`, "info");
+      renderActiveTable();
+    }
+
+    function handleDropTable() {
+      const tblName = document.getElementById('table-select-dropdown').value;
+      try {
+        db.dropTable(tblName);
+        showToast(`Table '${tblName}' dropped`, "success");
+        renderTableSelector();
+        renderActiveTable();
+      } catch (e) {
+        showToast(e.message, "error");
+      }
+    }
+
+    function openModal(id) {
+      if (id === 'insert-row-modal') prepareInsertForm();
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function handleCreateTable() {
+      const name = document.getElementById('new-tbl-name').value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (!name) return showToast("Enter a valid table name", "error");
+
+      try {
+        db.createTable(name);
+        showToast(`Table '${name}' created`, "success");
+        closeModal('create-table-modal');
+        renderTableSelector();
+        document.getElementById('table-select-dropdown').value = name;
+        renderActiveTable();
+      } catch (e) {
+        showToast(e.message, "error");
+      }
+    }
+
+    function prepareInsertForm() {
+      const tbl = document.getElementById('table-select-dropdown').value;
+      const form = document.getElementById('insert-row-fields');
+      const rows = db.getTableData(tbl);
+      const cols = rows.length > 0 ? Object.keys(rows[0]) : ['id', 'name', 'value'];
+
+      form.innerHTML = cols.map(c => `
+        <div>
+          <label class="block text-gray-400 mb-1">${c}</label>
+          <input type="text" data-col="${c}" class="row-input w-full bg-dark-input border border-dark-border rounded-lg px-2.5 py-1.5 text-white focus:outline-none">
+        </div>
+      `).join('');
+    }
+
+    function handleInsertRow() {
+      const tbl = document.getElementById('table-select-dropdown').value;
+      const inputs = document.querySelectorAll('.row-input');
+      const record = {};
+      let hasVal = false;
+
+      inputs.forEach(inp => {
+        const col = inp.getAttribute('data-col');
+        if (inp.value.trim()) {
+          record[col] = inp.value.trim();
+          hasVal = true;
+        }
+      });
+
+      if (!hasVal) return showToast("Row cannot be empty", "error");
+
+      db.insertRow(tbl, record);
+      showToast("Record inserted", "success");
+      closeModal('insert-row-modal');
+      renderActiveTable();
+    }
+
+    function handleTerminalSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('cli-input');
+      const cmd = input.value.trim();
+      if (!cmd) return;
+
+      appendTerminalLine(`$ ${cmd}`, "text-white font-bold");
+      input.value = "";
+
+      const lower = cmd.toLowerCase();
+
+      if (lower === "help") {
+        appendTerminalLine("DriveBase CLI Commands:");
+        appendTerminalLine(" - tables           List all database tables");
+        appendTerminalLine(" - select <tbl>     View data for a table");
+        appendTerminalLine(" - clear            Clear console log");
+        appendTerminalLine(" - export           Download JSON backup");
+      }
+      else if (lower === "clear") {
+        clearTerminal();
+      }
+      else if (lower === "tables") {
+        appendTerminalLine(`Tables: ${db.getTables().join(', ')}`);
+      }
+      else if (lower.startsWith("select ")) {
+        const tbl = lower.replace("select ", "").trim();
+        const data = db.getTableData(tbl);
+        appendTerminalLine(JSON.stringify(data, null, 2), "text-emerald-400");
+      }
+      else if (lower === "export") {
+        exportLocalJSON();
+      }
+      else {
+        appendTerminalLine(`Unknown command '${cmd}'. Type 'help' for command list.`, "text-red-400");
+      }
+    }
+
+    function appendTerminalLine(text, className = "text-gray-300") {
+      const output = document.getElementById('terminal-output');
+      const div = document.createElement('div');
+      div.className = className;
+      div.textContent = text;
+      output.appendChild(div);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearTerminal() {
+      document.getElementById('terminal-output').innerHTML = "";
+    }
+
+    function enableDemoDriveAuth() {
+      closeModal('gdrive-config-modal');
+      showToast("Local Storage Engine Active", "info");
+    }
+
+    function saveGoogleClientIdAndLogin() {
+      const clientId = document.getElementById('gdrive-client-id-input').value.trim();
+      if (!clientId) return showToast("Enter Client ID", "error");
+
+      try {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/drive.appdata',
+          callback: (response) => {
+            if (response.access_token) {
+              googleAccessToken = response.access_token;
+              document.getElementById('user-display-name').textContent = "Drive Connected";
+              closeModal('gdrive-config-modal');
+              showToast("Google Drive Connected!", "success");
+            }
+          }
+        });
+        client.requestAccessToken();
+      } catch (e) {
+        showToast("OAuth Init Error", "error");
+      }
+    }
+
+    function exportLocalJSON() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db.data, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `drivebase_backup_${Date.now()}.json`;
+      a.click();
+      showToast("Backup exported", "success");
+    }
+
+    function importLocalJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          db.data = JSON.parse(e.target.result);
+          db.saveLocal();
+          showToast("Database restored!", "success");
+          renderTableSelector();
+          renderActiveTable();
+        } catch(err) {
+          showToast("Invalid JSON file", "error");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function resetLocalDB() {
+      localStorage.removeItem(db.storageKey);
+      location.reload();
+    }
+
+    function showToast(msg, type = "info") {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: "border-brand-accent text-brand-accent",
+        error: "border-red-500 text-red-400",
+        info: "border-brand-gdrive text-brand-gdrive"
+      };
+
+      toast.className = `p-3 rounded-xl bg-dark-surface border ${colors[type]} shadow-2xl text-xs font-medium flex items-center justify-between gap-2 transition`;
+      toast.innerHTML = `<span>${msg}</span>`;
+
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+  </script>
+</body>
+</html>
